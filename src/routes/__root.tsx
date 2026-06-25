@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "sonner";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_URL, absUrl } from "../lib/site";
 
 function NotFoundComponent() {
   return (
@@ -78,29 +79,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Sistem Informasi Pustaka Semesta Alam" },
-      { name: "description", content: "Sistem digital pencatatan buku, peminjaman, dan pengembalian untuk perpustakaan desa/sekolah." },
-      { name: "author", content: "KKN Digitalisasi Literasi" },
-      { property: "og:title", content: "Sistem Informasi Pustaka Semesta Alam" },
-      { property: "og:description", content: "Sistem digital pencatatan buku, peminjaman, dan pengembalian untuk perpustakaan desa/sekolah." },
+      { title: SITE_NAME },
+      { name: "description", content: SITE_DESCRIPTION },
+      { name: "keywords", content: SITE_KEYWORDS },
+      { name: "author", content: SITE_NAME },
+      { name: "theme-color", content: "#0f172a" },
+      { property: "og:site_name", content: SITE_NAME },
       { property: "og:type", content: "website" },
-      { property: "og:site_name", content: "Sistem Informasi Perpustakaan Literasi KKN" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Sistem Informasi Pustaka Semesta Alam" },
-      { name: "twitter:description", content: "Sistem digital pencatatan buku, peminjaman, dan pengembalian untuk perpustakaan desa/sekolah." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/eef2f769-a5d2-451d-85ae-b96d5028f2e8" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/eef2f769-a5d2-451d-85ae-b96d5028f2e8" },
+      { property: "og:title", content: SITE_NAME },
+      { property: "og:description", content: SITE_DESCRIPTION },
+      { property: "og:url", content: absUrl("/") },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: SITE_NAME },
+      { name: "twitter:description", content: SITE_DESCRIPTION },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      {
-        rel: "preconnect",
-        href: "https://fonts.googleapis.com",
-      },
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/favicon.ico" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
@@ -114,15 +111,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@graph": [
             {
               "@type": "Organization",
-              name: "Sistem Informasi Perpustakaan Literasi KKN",
-              url: "https://perpustakaansemestaalam.lovable.app",
-              description:
-                "Sistem digital pencatatan buku, peminjaman, dan pengembalian untuk perpustakaan desa/sekolah.",
+              name: SITE_NAME,
+              url: SITE_URL,
+              description: SITE_DESCRIPTION,
             },
             {
               "@type": "WebSite",
-              name: "Sistem Informasi Perpustakaan Literasi KKN",
-              url: "https://perpustakaansemestaalam.lovable.app",
+              name: SITE_NAME,
+              url: SITE_URL,
+              potentialAction: {
+                "@type": "SearchAction",
+                target: `${SITE_URL}/?q={search_term_string}`,
+                "query-input": "required name=search_term_string",
+              },
             },
           ],
         }),

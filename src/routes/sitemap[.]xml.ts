@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
-
-const BASE_URL = "https://perpustakaansemestaalam.lovable.app";
+import { SITE_URL } from "@/lib/site";
 
 interface SitemapEntry {
   path: string;
@@ -14,12 +13,12 @@ export const Route = createFileRoute("/sitemap.xml")({
     handlers: {
       GET: async () => {
         const entries: SitemapEntry[] = [
-          { path: "/login", changefreq: "monthly", priority: "1.0" },
-          { path: "/daftar-peminjam", changefreq: "monthly", priority: "0.8" },
+          { path: "/", changefreq: "weekly", priority: "1.0" },
+          { path: "/daftar-peminjam", changefreq: "monthly", priority: "0.7" },
         ];
         const urls = entries.map(
           (e) =>
-            `  <url>\n    <loc>${BASE_URL}${e.path}</loc>\n    <changefreq>${e.changefreq}</changefreq>\n    <priority>${e.priority}</priority>\n  </url>`,
+            `  <url>\n    <loc>${SITE_URL}${e.path}</loc>\n    <changefreq>${e.changefreq}</changefreq>\n    <priority>${e.priority}</priority>\n  </url>`,
         );
         const xml = [
           `<?xml version="1.0" encoding="UTF-8"?>`,
