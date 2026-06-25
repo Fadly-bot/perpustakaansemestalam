@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { registerPeminjam } from "@/lib/peminjam-register.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,9 +48,11 @@ export const Route = createFileRoute("/daftar-peminjam")({
 
 function DaftarPeminjamPage() {
   const navigate = useNavigate();
+  const submitFn = useServerFn(registerPeminjam);
   const [form, setForm] = useState({ nama: "", no_identitas: "", no_hp: "", alamat: "", email: "" });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  void navigate;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,18 +62,14 @@ function DaftarPeminjamPage() {
       return;
     }
     setLoading(true);
-    const payload = { ...parsed.data, email: parsed.data.email || null };
-    const { data, error } = await supabase
-      .from("peminjam")
-      .insert(payload as never)
-      .select("kode_peminjam")
-      .single();
-    setLoading(false);
-    if (error) {
-      toast.error("Gagal mendaftar: " + error.message);
-      return;
+    try {
+      const res = await submitFn({ data: { ...parsed.data, email: parsed.data.email || null } });
+      setSuccess(res.kode_peminjam);
+    } catch (err) {
+      toast.error("Gagal mendaftar: " + (err instanceof Error ? err.message : "Terjadi kesalahan"));
+    } finally {
+      setLoading(false);
     }
-    setSuccess(data.kode_peminjam);
   };
 
   if (success) {
