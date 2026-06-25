@@ -1,0 +1,10 @@
+# Sistem Informasi Perpustakaan Literasi KKN
+
+> Aplikasi web untuk digitalisasi administrasi perpustakaan desa/sekolah — pencatatan buku, peminjaman, pengembalian, dan laporan literasi.
+
+Sistem ini dibangun dalam rangka program KKN digitalisasi literasi untuk menggantikan pencatatan manual perpustakaan dengan sistem digital terpadu. Pengguna terdiri dari admin, petugas perpustakaan, dan peminjam (masyarakat/siswa).
+
+## Pages
+
+- [Masuk](/login): Halaman login untuk admin dan petugas perpustakaan.
+- [Daftar Peminjam](/daftar-peminjam): Formulir registrasi peminjam baru tanpa perlu login.
