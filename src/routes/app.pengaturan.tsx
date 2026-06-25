@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2, Trash2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
+import { createPetugas } from "@/lib/petugas.functions";
 
 export const Route = createFileRoute("/app/pengaturan")({
   ssr: false,
@@ -61,29 +63,31 @@ function PengaturanPage() {
     },
   });
 
+  const createPetugasFn = useServerFn(createPetugas);
+
   const onAddPetugas = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.password.length < 8) return toast.error("Password minimal 8 karakter");
     setSaving(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/login`,
-        data: { username: form.username, nama_lengkap: form.nama_lengkap },
-      },
-    });
-    if (error || !data.user) {
+    try {
+      await createPetugasFn({
+        data: {
+          email: form.email,
+          password: form.password,
+          username: form.username,
+          nama_lengkap: form.nama_lengkap,
+        },
+      });
+      toast.success("Akun petugas berhasil dibuat");
+      setOpen(false);
+      setForm({ email: "", username: "", nama_lengkap: "", password: "" });
+      qc.invalidateQueries({ queryKey: ["petugas-list"] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gagal membuat akun";
+      toast.error(msg);
+    } finally {
       setSaving(false);
-      return toast.error(error?.message ?? "Gagal membuat akun");
     }
-    const { error: rErr } = await supabase.from("user_roles").insert({ user_id: data.user.id, role: "petugas" } as never);
-    setSaving(false);
-    if (rErr) return toast.error("Akun dibuat tapi role gagal: " + rErr.message);
-    toast.success("Akun petugas berhasil dibuat");
-    setOpen(false);
-    setForm({ email: "", username: "", nama_lengkap: "", password: "" });
-    qc.invalidateQueries({ queryKey: ["petugas-list"] });
   };
 
   const removeRole = async (user_id: string) => {

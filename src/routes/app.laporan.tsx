@@ -61,17 +61,29 @@ function LaporanPage() {
 
   const exportPDF = () => {
     if (!data || data.length === 0) return toast.error("Tidak ada data");
+    const esc = (s: unknown) =>
+      String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Laporan Peminjaman</title>
 <style>body{font-family:Inter,sans-serif;padding:24px;color:#0f172a}h1{font-size:18px;margin:0 0 4px}p{margin:0 0 16px;color:#64748b;font-size:12px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left}th{background:#eff6ff}</style>
 </head><body>
 <h1>Laporan Peminjaman Perpustakaan</h1>
-<p>Periode ${from} sampai ${to}</p>
+<p>Periode ${esc(from)} sampai ${esc(to)}</p>
 <table><thead><tr><th>Tgl Pinjam</th><th>Tgl Kembali</th><th>Peminjam</th><th>Buku</th><th>Status</th></tr></thead>
 <tbody>${data
         .map(
-          (p) => `<tr><td>${p.tanggal_pinjam}</td><td>${p.tanggal_kembali}</td><td>${p.peminjam?.nama ?? ""} (${p.peminjam?.kode_peminjam ?? ""})</td><td>${
-            p.detail_peminjaman?.map((d: { jumlah: number; buku: { judul: string } | null }) => `${d.buku?.judul} x${d.jumlah}`).join("; ") ?? ""
-          }</td><td>${p.status}</td></tr>`,
+          (p) => `<tr><td>${esc(p.tanggal_pinjam)}</td><td>${esc(p.tanggal_kembali)}</td><td>${esc(p.peminjam?.nama ?? "")} (${esc(p.peminjam?.kode_peminjam ?? "")})</td><td>${
+            p.detail_peminjaman
+              ?.map(
+                (d: { jumlah: number; buku: { judul: string } | null }) =>
+                  `${esc(d.buku?.judul ?? "")} x${esc(d.jumlah)}`,
+              )
+              .join("; ") ?? ""
+          }</td><td>${esc(p.status)}</td></tr>`,
         )
         .join("")}</tbody></table>
 <script>window.onload=()=>window.print();</script>
