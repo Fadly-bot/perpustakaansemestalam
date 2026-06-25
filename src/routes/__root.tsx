@@ -78,15 +78,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Sistem Informasi Perpustakaan Literasi KKN" },
+      { title: "Sistem Informasi Pustaka Semesta Alam" },
       { name: "description", content: "Sistem digital pencatatan buku, peminjaman, dan pengembalian untuk perpustakaan desa/sekolah." },
       { name: "author", content: "KKN Digitalisasi Literasi" },
-      { property: "og:title", content: "Sistem Informasi Perpustakaan Literasi KKN" },
+      { property: "og:title", content: "Sistem Informasi Pustaka Semesta Alam" },
       { property: "og:description", content: "Sistem digital pencatatan buku, peminjaman, dan pengembalian untuk perpustakaan desa/sekolah." },
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: "Sistem Informasi Perpustakaan Literasi KKN" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Sistem Informasi Pustaka Semesta Alam" },
+      { name: "twitter:description", content: "Sistem digital pencatatan buku, peminjaman, dan pengembalian untuk perpustakaan desa/sekolah." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/eef2f769-a5d2-451d-85ae-b96d5028f2e8" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/eef2f769-a5d2-451d-85ae-b96d5028f2e8" },
     ],
     links: [
       {
