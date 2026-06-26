@@ -242,6 +242,65 @@ function PengaturanPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" /> Admin
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={onPromoteByEmail} className="flex flex-col sm:flex-row gap-2 sm:items-end">
+            <div className="flex-1 space-y-2">
+              <Label>Promote user menjadi admin (berdasarkan email)</Label>
+              <Input
+                type="email"
+                required
+                placeholder="email@contoh.com"
+                value={promoteEmail}
+                onChange={(e) => setPromoteEmail(e.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={promoting}>
+              {promoting && <Loader2 className="h-4 w-4 animate-spin" />} Jadikan Admin
+            </Button>
+          </form>
+
+          <div className="overflow-x-auto">
+            {!admins || admins.length === 0 ? (
+              <p className="text-center py-6 text-sm text-muted-foreground">Belum ada admin.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-secondary/60 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-4 py-3">Nama</th>
+                    <th className="text-left px-4 py-3">Email</th>
+                    <th className="text-right px-4 py-3">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {admins.map((a) => (
+                    <tr key={a.user_id} className="border-t">
+                      <td className="px-4 py-3 font-medium">{a.nama_lengkap ?? a.username ?? "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{a.email ?? "-"}</td>
+                      <td className="px-4 py-3 text-right">
+                        {a.user_id === auth.user?.id ? (
+                          <span className="text-xs text-muted-foreground">Anda</span>
+                        ) : (
+                          <Button size="sm" variant="ghost" onClick={() => onRevokeAdmin(a.user_id)} title="Cabut admin">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Profil Perpustakaan</CardTitle>
         </CardHeader>
         <CardContent>
