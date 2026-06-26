@@ -13,6 +13,31 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
   if (!data) throw new Response("Forbidden", { status: 403 });
 }
 
+export const createAdminUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(255), password: z.string().min(6) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: data.email,
+      password: data.password,
+      email_confirm: true,
+    });
+    if (authError) throw new Error(authError.message);
+    if (!authData.user) throw new Error("Gagal membuat user.");
+
+    // Add admin role
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: authData.user.id, role: "admin" }, { onConflict: "user_id,role" });
+    if (roleError) throw new Error(roleError.message);
+
+    return { ok: true, user_id: authData.user.id, email: authData.user.email };
+  });
+
 export const promoteAdminByEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(255) }).parse(d))
