@@ -13,6 +13,44 @@ export interface AuthState {
   namaLengkap: string | null;
 }
 
+/**
+ * Ekstrak role dari JWT (Custom Access Token Hook) atau app_metadata.
+ * Tidak lagi membaca tabel public.user_roles.
+ */
+function extractRolesFromSession(session: Session | null): AppRole[] {
+  if (!session) return [];
+  const out = new Set<string>();
+
+  // 1) JWT claims dari Custom Access Token Hook
+  try {
+    const parts = session.access_token?.split(".");
+    if (parts && parts.length >= 2) {
+      const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+      const payload = JSON.parse(json) as Record<string, unknown>;
+      const candidates = [
+        payload.role,
+        payload.user_role,
+        payload.roles,
+        payload.user_roles,
+      ].flat();
+      for (const c of candidates) {
+        if (typeof c === "string") out.add(c);
+      }
+    }
+  } catch {
+    /* ignore decode errors */
+  }
+
+  // 2) Fallback: app_metadata.role / app_metadata.roles
+  const meta = session.user?.app_metadata as Record<string, unknown> | undefined;
+  const metaVals = [meta?.role, meta?.roles].flat();
+  for (const c of metaVals) {
+    if (typeof c === "string") out.add(c);
+  }
+
+  return Array.from(out).filter((r): r is AppRole => r === "admin" || r === "petugas");
+}
+
 export function useAuth(): AuthState {
   const [state, setState] = useState<AuthState>({
     loading: true,
@@ -26,7 +64,8 @@ export function useAuth(): AuthState {
   useEffect(() => {
     let active = true;
 
-    const loadProfile = async (user: User | null) => {
+    const loadProfile = async (session: Session | null) => {
+      const user: User | null = session?.user ?? null;
       if (!user) {
         if (active)
           setState({
@@ -39,31 +78,30 @@ export function useAuth(): AuthState {
           });
         return;
       }
-      const [{ data: rolesData }, { data: profile }] = await Promise.all([
-        supabase.from("user_roles").select("role").eq("user_id", user.id),
-        supabase.from("profiles").select("username, nama_lengkap").eq("id", user.id).maybeSingle(),
-      ]);
+      const roles = extractRolesFromSession(session);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username, nama_lengkap")
+        .eq("id", user.id)
+        .maybeSingle();
       if (!active) return;
-      const roles = (rolesData ?? []).map((r) => r.role as AppRole);
-      setState((s) => ({
-        ...s,
+      setState({
         loading: false,
+        session,
         user,
         roles,
         username: profile?.username ?? user.email ?? null,
         namaLengkap: profile?.nama_lengkap ?? null,
-      }));
+      });
     };
 
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      setState((s) => ({ ...s, session: data.session }));
-      loadProfile(data.session?.user ?? null);
+      loadProfile(data.session);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      setState((s) => ({ ...s, session }));
-      loadProfile(session?.user ?? null);
+      loadProfile(session);
     });
 
     return () => {
