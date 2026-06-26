@@ -16,9 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Loader2, Trash2, ShieldAlert } from "lucide-react";
+import { Plus, Loader2, Trash2, ShieldAlert, ShieldCheck, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
 import { createPetugas } from "@/lib/petugas.functions";
+import { promoteAdminByEmail, promoteUserIdToAdmin, revokeAdmin } from "@/lib/admin-roles.functions";
 
 export const Route = createFileRoute("/app/pengaturan")({
   ssr: false,
@@ -31,6 +32,8 @@ function PengaturanPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", username: "", nama_lengkap: "", password: "" });
   const [saving, setSaving] = useState(false);
+  const [promoteEmail, setPromoteEmail] = useState("");
+  const [promoting, setPromoting] = useState(false);
   const [profil, setProfil] = useState({
     nama: localStorage.getItem("profil_nama") ?? "Perpustakaan Literasi KKN",
     alamat: localStorage.getItem("profil_alamat") ?? "",
@@ -64,6 +67,75 @@ function PengaturanPage() {
   });
 
   const createPetugasFn = useServerFn(createPetugas);
+  const promoteByEmailFn = useServerFn(promoteAdminByEmail);
+  const promoteByIdFn = useServerFn(promoteUserIdToAdmin);
+  const revokeAdminFn = useServerFn(revokeAdmin);
+
+  const { data: admins } = useQuery({
+    queryKey: ["admin-list"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data: roles, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+      if (error) throw error;
+      const ids = (roles ?? []).map((r) => r.user_id);
+      if (ids.length === 0) return [];
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, username, nama_lengkap, email")
+        .in("id", ids);
+      const map = new Map((profs ?? []).map((p) => [p.id, p]));
+      return ids.map((id) => ({
+        user_id: id,
+        nama_lengkap: map.get(id)?.nama_lengkap ?? null,
+        username: map.get(id)?.username ?? null,
+        email: map.get(id)?.email ?? null,
+      }));
+    },
+  });
+
+  const invalidateRoles = () => {
+    qc.invalidateQueries({ queryKey: ["petugas-list"] });
+    qc.invalidateQueries({ queryKey: ["admin-list"] });
+  };
+
+  const onPromoteByEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPromoting(true);
+    try {
+      await promoteByEmailFn({ data: { email: promoteEmail } });
+      toast.success("Berhasil dijadikan admin");
+      setPromoteEmail("");
+      invalidateRoles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal promote admin");
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const onPromotePetugas = async (user_id: string) => {
+    try {
+      await promoteByIdFn({ data: { user_id } });
+      toast.success("Petugas dijadikan admin");
+      invalidateRoles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal");
+    }
+  };
+
+  const onRevokeAdmin = async (user_id: string) => {
+    if (!confirm("Cabut role admin dari user ini?")) return;
+    try {
+      await revokeAdminFn({ data: { user_id } });
+      toast.success("Role admin dicabut");
+      invalidateRoles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal");
+    }
+  };
 
   const onAddPetugas = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,8 +224,11 @@ function PengaturanPage() {
                     <td className="px-4 py-3 font-medium">{p.nama_lengkap ?? "-"}</td>
                     <td className="px-4 py-3">{p.username ?? "-"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.email ?? "-"}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => removeRole(p.user_id)}>
+                    <td className="px-4 py-3 text-right space-x-1">
+                      <Button size="sm" variant="outline" onClick={() => onPromotePetugas(p.user_id)} title="Jadikan admin">
+                        <ArrowUp className="h-4 w-4" /> Admin
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => removeRole(p.user_id)} title="Cabut role petugas">
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </td>
@@ -164,6 +239,65 @@ function PengaturanPage() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" /> Admin
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={onPromoteByEmail} className="flex flex-col sm:flex-row gap-2 sm:items-end">
+            <div className="flex-1 space-y-2">
+              <Label>Promote user menjadi admin (berdasarkan email)</Label>
+              <Input
+                type="email"
+                required
+                placeholder="email@contoh.com"
+                value={promoteEmail}
+                onChange={(e) => setPromoteEmail(e.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={promoting}>
+              {promoting && <Loader2 className="h-4 w-4 animate-spin" />} Jadikan Admin
+            </Button>
+          </form>
+
+          <div className="overflow-x-auto">
+            {!admins || admins.length === 0 ? (
+              <p className="text-center py-6 text-sm text-muted-foreground">Belum ada admin.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-secondary/60 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-4 py-3">Nama</th>
+                    <th className="text-left px-4 py-3">Email</th>
+                    <th className="text-right px-4 py-3">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {admins.map((a) => (
+                    <tr key={a.user_id} className="border-t">
+                      <td className="px-4 py-3 font-medium">{a.nama_lengkap ?? a.username ?? "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{a.email ?? "-"}</td>
+                      <td className="px-4 py-3 text-right">
+                        {a.user_id === auth.user?.id ? (
+                          <span className="text-xs text-muted-foreground">Anda</span>
+                        ) : (
+                          <Button size="sm" variant="ghost" onClick={() => onRevokeAdmin(a.user_id)} title="Cabut admin">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader>
