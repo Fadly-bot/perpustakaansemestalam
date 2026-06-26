@@ -16,9 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Loader2, Trash2, ShieldAlert } from "lucide-react";
+import { Plus, Loader2, Trash2, ShieldAlert, ShieldCheck, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
 import { createPetugas } from "@/lib/petugas.functions";
+import { promoteAdminByEmail, promoteUserIdToAdmin, revokeAdmin } from "@/lib/admin-roles.functions";
 
 export const Route = createFileRoute("/app/pengaturan")({
   ssr: false,
