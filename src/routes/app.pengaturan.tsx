@@ -32,6 +32,8 @@ function PengaturanPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: "", username: "", nama_lengkap: "", password: "" });
   const [saving, setSaving] = useState(false);
+  const [promoteEmail, setPromoteEmail] = useState("");
+  const [promoting, setPromoting] = useState(false);
   const [profil, setProfil] = useState({
     nama: localStorage.getItem("profil_nama") ?? "Perpustakaan Literasi KKN",
     alamat: localStorage.getItem("profil_alamat") ?? "",
@@ -65,6 +67,75 @@ function PengaturanPage() {
   });
 
   const createPetugasFn = useServerFn(createPetugas);
+  const promoteByEmailFn = useServerFn(promoteAdminByEmail);
+  const promoteByIdFn = useServerFn(promoteUserIdToAdmin);
+  const revokeAdminFn = useServerFn(revokeAdmin);
+
+  const { data: admins } = useQuery({
+    queryKey: ["admin-list"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data: roles, error } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+      if (error) throw error;
+      const ids = (roles ?? []).map((r) => r.user_id);
+      if (ids.length === 0) return [];
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, username, nama_lengkap, email")
+        .in("id", ids);
+      const map = new Map((profs ?? []).map((p) => [p.id, p]));
+      return ids.map((id) => ({
+        user_id: id,
+        nama_lengkap: map.get(id)?.nama_lengkap ?? null,
+        username: map.get(id)?.username ?? null,
+        email: map.get(id)?.email ?? null,
+      }));
+    },
+  });
+
+  const invalidateRoles = () => {
+    qc.invalidateQueries({ queryKey: ["petugas-list"] });
+    qc.invalidateQueries({ queryKey: ["admin-list"] });
+  };
+
+  const onPromoteByEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPromoting(true);
+    try {
+      await promoteByEmailFn({ data: { email: promoteEmail } });
+      toast.success("Berhasil dijadikan admin");
+      setPromoteEmail("");
+      invalidateRoles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal promote admin");
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const onPromotePetugas = async (user_id: string) => {
+    try {
+      await promoteByIdFn({ data: { user_id } });
+      toast.success("Petugas dijadikan admin");
+      invalidateRoles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal");
+    }
+  };
+
+  const onRevokeAdmin = async (user_id: string) => {
+    if (!confirm("Cabut role admin dari user ini?")) return;
+    try {
+      await revokeAdminFn({ data: { user_id } });
+      toast.success("Role admin dicabut");
+      invalidateRoles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal");
+    }
+  };
 
   const onAddPetugas = async (e: React.FormEvent) => {
     e.preventDefault();
