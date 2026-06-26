@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/app-shell";
@@ -18,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2, Trash2, ShieldAlert, ShieldCheck, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
-import { createPetugas } from "@/lib/petugas.functions";
+import { createPetugas, fetchPetugasList, fetchAdminList } from "@/lib/petugas.functions";
 import { promoteAdminByEmail, promoteUserIdToAdmin, revokeAdmin } from "@/lib/admin-roles.functions";
 
 export const Route = createFileRoute("/app/pengaturan")({
@@ -26,11 +25,33 @@ export const Route = createFileRoute("/app/pengaturan")({
   component: PengaturanPage,
 });
 
+interface PetugasUser {
+  user_id: string;
+  email: string | null;
+  username: string | null;
+  nama_lengkap: string | null;
+}
+
+interface FormState {
+  email: string;
+  username: string;
+  nama_lengkap: string;
+  password: string;
+}
+
+interface FormErrors {
+  email?: string;
+  username?: string;
+  nama_lengkap?: string;
+  password?: string;
+}
+
 function PengaturanPage() {
   const auth = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ email: "", username: "", nama_lengkap: "", password: "" });
+  const [form, setForm] = useState<FormState>({ email: "", username: "", nama_lengkap: "", password: "" });
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
   const [promoteEmail, setPromoteEmail] = useState("");
   const [promoting, setPromoting] = useState(false);
@@ -41,64 +62,59 @@ function PengaturanPage() {
 
   const isAdmin = auth.roles.includes("admin");
 
-  const { data: petugas, isLoading } = useQuery({
-    queryKey: ["petugas-list"],
-    enabled: isAdmin,
-    queryFn: async () => {
-      const { data: roles, error } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("role", "petugas");
-      if (error) throw error;
-      const ids = (roles ?? []).map((r) => r.user_id);
-      if (ids.length === 0) return [];
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, username, nama_lengkap, email")
-        .in("id", ids);
-      const map = new Map((profs ?? []).map((p) => [p.id, p]));
-      return (roles ?? []).map((r) => ({
-        user_id: r.user_id,
-        nama_lengkap: map.get(r.user_id)?.nama_lengkap ?? null,
-        username: map.get(r.user_id)?.username ?? null,
-        email: map.get(r.user_id)?.email ?? null,
-      }));
-    },
-  });
-
+  const fetchPetugasFn = useServerFn(fetchPetugasList);
+  const fetchAdminFn = useServerFn(fetchAdminList);
   const createPetugasFn = useServerFn(createPetugas);
   const promoteByEmailFn = useServerFn(promoteAdminByEmail);
   const promoteByIdFn = useServerFn(promoteUserIdToAdmin);
   const revokeAdminFn = useServerFn(revokeAdmin);
 
-  const { data: admins } = useQuery({
+  const { data: petugas = [], isLoading: petugasLoading } = useQuery({
+    queryKey: ["petugas-list"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const result = await fetchPetugasFn();
+      return result as PetugasUser[];
+    },
+  });
+
+  const { data: admins = [] } = useQuery({
     queryKey: ["admin-list"],
     enabled: isAdmin,
     queryFn: async () => {
-      const { data: roles, error } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-      if (error) throw error;
-      const ids = (roles ?? []).map((r) => r.user_id);
-      if (ids.length === 0) return [];
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, username, nama_lengkap, email")
-        .in("id", ids);
-      const map = new Map((profs ?? []).map((p) => [p.id, p]));
-      return ids.map((id) => ({
-        user_id: id,
-        nama_lengkap: map.get(id)?.nama_lengkap ?? null,
-        username: map.get(id)?.username ?? null,
-        email: map.get(id)?.email ?? null,
-      }));
+      const result = await fetchAdminFn();
+      return result as PetugasUser[];
     },
   });
 
   const invalidateRoles = () => {
     qc.invalidateQueries({ queryKey: ["petugas-list"] });
     qc.invalidateQueries({ queryKey: ["admin-list"] });
+  };
+
+  // Validasi form
+  const validateForm = (): boolean => {
+    const errors: FormErrors = {};
+    
+    if (!form.nama_lengkap.trim() || form.nama_lengkap.trim().length < 2) {
+      errors.nama_lengkap = "Nama minimal 2 karakter";
+    }
+    
+    if (!form.username.trim() || form.username.trim().length < 3) {
+      errors.username = "Username minimal 3 karakter";
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!form.email.trim() || !emailRegex.test(form.email.trim())) {
+      errors.email = "Email tidak valid";
+    }
+    
+    if (!form.password || form.password.length < 8) {
+      errors.password = "Password minimal 8 karakter";
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const onPromoteByEmail = async (e: React.FormEvent) => {
@@ -139,7 +155,11 @@ function PengaturanPage() {
 
   const onAddPetugas = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.password.length < 8) return toast.error("Password minimal 8 karakter");
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setSaving(true);
     try {
       await createPetugasFn({
@@ -153,6 +173,7 @@ function PengaturanPage() {
       toast.success("Akun petugas berhasil dibuat");
       setOpen(false);
       setForm({ email: "", username: "", nama_lengkap: "", password: "" });
+      setFormErrors({});
       qc.invalidateQueries({ queryKey: ["petugas-list"] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Gagal membuat akun";
@@ -163,11 +184,23 @@ function PengaturanPage() {
   };
 
   const removeRole = async (user_id: string) => {
-    const { error } = await supabase.from("user_roles").delete().eq("user_id", user_id).eq("role", "petugas");
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Role petugas dicabut");
-      qc.invalidateQueries({ queryKey: ["petugas-list"] });
+    if (!confirm("Cabut role petugas dari user ini?")) return;
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", user_id)
+        .eq("role", "petugas");
+      
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Role petugas dicabut");
+        qc.invalidateQueries({ queryKey: ["petugas-list"] });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus role");
     }
   };
 
@@ -196,6 +229,7 @@ function PengaturanPage() {
     <div className="space-y-6">
       <PageHeader title="Pengaturan" description="Kelola akun petugas dan profil perpustakaan." />
 
+      {/* Akun Petugas Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Akun Petugas</CardTitle>
@@ -204,8 +238,10 @@ function PengaturanPage() {
           </Button>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          {petugasLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
           ) : !petugas || petugas.length === 0 ? (
             <p className="text-center py-10 text-sm text-muted-foreground">Belum ada petugas.</p>
           ) : (
@@ -223,12 +259,22 @@ function PengaturanPage() {
                   <tr key={p.user_id} className="border-t">
                     <td className="px-4 py-3 font-medium">{p.nama_lengkap ?? "-"}</td>
                     <td className="px-4 py-3">{p.username ?? "-"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.email ?? "-"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{p.email ?? "-"}</td>
                     <td className="px-4 py-3 text-right space-x-1">
-                      <Button size="sm" variant="outline" onClick={() => onPromotePetugas(p.user_id)} title="Jadikan admin">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onPromotePetugas(p.user_id)}
+                        title="Jadikan admin"
+                      >
                         <ArrowUp className="h-4 w-4" /> Admin
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => removeRole(p.user_id)} title="Cabut role petugas">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeRole(p.user_id)}
+                        title="Cabut role petugas"
+                      >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </td>
@@ -240,6 +286,7 @@ function PengaturanPage() {
         </CardContent>
       </Card>
 
+      {/* Admin Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -279,12 +326,17 @@ function PengaturanPage() {
                   {admins.map((a) => (
                     <tr key={a.user_id} className="border-t">
                       <td className="px-4 py-3 font-medium">{a.nama_lengkap ?? a.username ?? "-"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{a.email ?? "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{a.email ?? "-"}</td>
                       <td className="px-4 py-3 text-right">
                         {a.user_id === auth.user?.id ? (
                           <span className="text-xs text-muted-foreground">Anda</span>
                         ) : (
-                          <Button size="sm" variant="ghost" onClick={() => onRevokeAdmin(a.user_id)} title="Cabut admin">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onRevokeAdmin(a.user_id)}
+                            title="Cabut admin"
+                          >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
@@ -298,7 +350,7 @@ function PengaturanPage() {
         </CardContent>
       </Card>
 
-
+      {/* Profil Perpustakaan Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Profil Perpustakaan</CardTitle>
@@ -307,17 +359,24 @@ function PengaturanPage() {
           <form onSubmit={saveProfil} className="space-y-3 max-w-xl">
             <div className="space-y-2">
               <Label>Nama Perpustakaan</Label>
-              <Input value={profil.nama} onChange={(e) => setProfil({ ...profil, nama: e.target.value })} />
+              <Input
+                value={profil.nama}
+                onChange={(e) => setProfil({ ...profil, nama: e.target.value })}
+              />
             </div>
             <div className="space-y-2">
               <Label>Alamat</Label>
-              <Input value={profil.alamat} onChange={(e) => setProfil({ ...profil, alamat: e.target.value })} />
+              <Input
+                value={profil.alamat}
+                onChange={(e) => setProfil({ ...profil, alamat: e.target.value })}
+              />
             </div>
             <Button type="submit">Simpan</Button>
           </form>
         </CardContent>
       </Card>
 
+      {/* Dialog Tambah Petugas */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
@@ -326,24 +385,76 @@ function PengaturanPage() {
           <form onSubmit={onAddPetugas} className="space-y-3">
             <div className="space-y-2">
               <Label>Nama Lengkap</Label>
-              <Input required value={form.nama_lengkap} onChange={(e) => setForm({ ...form, nama_lengkap: e.target.value })} />
+              <Input
+                value={form.nama_lengkap}
+                onChange={(e) => {
+                  setForm({ ...form, nama_lengkap: e.target.value });
+                  if (formErrors.nama_lengkap) setFormErrors({ ...formErrors, nama_lengkap: undefined });
+                }}
+                placeholder="Cth: Budi Santoso"
+                aria-invalid={!!formErrors.nama_lengkap}
+              />
+              {formErrors.nama_lengkap && (
+                <p className="text-xs text-destructive">{formErrors.nama_lengkap}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Username</Label>
-              <Input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+              <Input
+                value={form.username}
+                onChange={(e) => {
+                  setForm({ ...form, username: e.target.value });
+                  if (formErrors.username) setFormErrors({ ...formErrors, username: undefined });
+                }}
+                placeholder="Cth: budisantoso"
+                aria-invalid={!!formErrors.username}
+              />
+              {formErrors.username && (
+                <p className="text-xs text-destructive">{formErrors.username}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value });
+                  if (formErrors.email) setFormErrors({ ...formErrors, email: undefined });
+                }}
+                placeholder="budi@perpustakaan.com"
+                aria-invalid={!!formErrors.email}
+              />
+              {formErrors.email && (
+                <p className="text-xs text-destructive">{formErrors.email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Password (min 8 karakter)</Label>
-              <Input type="password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(e) => {
+                  setForm({ ...form, password: e.target.value });
+                  if (formErrors.password) setFormErrors({ ...formErrors, password: undefined });
+                }}
+                placeholder="Masukkan password yang aman"
+                aria-invalid={!!formErrors.password}
+              />
+              {formErrors.password && (
+                <p className="text-xs text-destructive">{formErrors.password}</p>
+              )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button type="button" variant="outline" onClick={() => {
+                setOpen(false);
+                setFormErrors({});
+              }}>
+                Batal
+              </Button>
               <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />} Buat Akun
+                {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Buat Akun
               </Button>
             </DialogFooter>
           </form>
