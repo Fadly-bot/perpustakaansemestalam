@@ -17,40 +17,56 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2, Trash2, ShieldAlert, ShieldCheck, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
-import { createPetugas, fetchPetugasList, fetchAdminList } from "@/lib/petugas.functions";
-import { promoteAdminByEmail, promoteUserIdToAdmin, revokeAdmin } from "@/lib/admin-roles.functions";
-
+import {
+  createPetugas,
+  fetchPetugasList,
+  fetchAdminList,
+  removePetugasRole,
+} from "@/lib/petugas.functions";
+import {
+  promoteAdminByEmail,
+  promoteUserIdToAdmin,
+  revokeAdmin,
+} from "@/lib/admin-roles.functions";
+ 
 export const Route = createFileRoute("/app/pengaturan")({
   ssr: false,
   component: PengaturanPage,
 });
-
+ 
 interface PetugasUser {
   user_id: string;
   email: string | null;
   username: string | null;
   nama_lengkap: string | null;
+  role?: string | null;
+  status?: string | null;
 }
-
+ 
 interface FormState {
   email: string;
   username: string;
   nama_lengkap: string;
   password: string;
 }
-
+ 
 interface FormErrors {
   email?: string;
   username?: string;
   nama_lengkap?: string;
   password?: string;
 }
-
+ 
 function PengaturanPage() {
   const auth = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<FormState>({ email: "", username: "", nama_lengkap: "", password: "" });
+  const [form, setForm] = useState<FormState>({
+    email: "",
+    username: "",
+    nama_lengkap: "",
+    password: "",
+  });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
   const [promoteEmail, setPromoteEmail] = useState("");
@@ -59,16 +75,17 @@ function PengaturanPage() {
     nama: localStorage.getItem("profil_nama") ?? "Perpustakaan Literasi KKN",
     alamat: localStorage.getItem("profil_alamat") ?? "",
   });
-
+ 
   const isAdmin = auth.roles.includes("admin");
-
+ 
   const fetchPetugasFn = useServerFn(fetchPetugasList);
   const fetchAdminFn = useServerFn(fetchAdminList);
   const createPetugasFn = useServerFn(createPetugas);
+  const removePetugasRoleFn = useServerFn(removePetugasRole);
   const promoteByEmailFn = useServerFn(promoteAdminByEmail);
   const promoteByIdFn = useServerFn(promoteUserIdToAdmin);
   const revokeAdminFn = useServerFn(revokeAdmin);
-
+ 
   const { data: petugas = [], isLoading: petugasLoading } = useQuery({
     queryKey: ["petugas-list"],
     enabled: isAdmin,
@@ -77,7 +94,7 @@ function PengaturanPage() {
       return result as PetugasUser[];
     },
   });
-
+ 
   const { data: admins = [] } = useQuery({
     queryKey: ["admin-list"],
     enabled: isAdmin,
@@ -86,37 +103,45 @@ function PengaturanPage() {
       return result as PetugasUser[];
     },
   });
-
+ 
   const invalidateRoles = () => {
     qc.invalidateQueries({ queryKey: ["petugas-list"] });
     qc.invalidateQueries({ queryKey: ["admin-list"] });
   };
-
+ 
   // Validasi form
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
-    
-    if (!form.nama_lengkap.trim() || form.nama_lengkap.trim().length < 2) {
+ 
+    if (!form.nama_lengkap.trim()) {
+      errors.nama_lengkap = "Nama lengkap wajib diisi";
+    } else if (form.nama_lengkap.trim().length < 2) {
       errors.nama_lengkap = "Nama minimal 2 karakter";
     }
-    
-    if (!form.username.trim() || form.username.trim().length < 3) {
+ 
+    if (!form.username.trim()) {
+      errors.username = "Username wajib diisi";
+    } else if (form.username.trim().length < 3) {
       errors.username = "Username minimal 3 karakter";
     }
-    
+ 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!form.email.trim() || !emailRegex.test(form.email.trim())) {
+    if (!form.email.trim()) {
+      errors.email = "Email wajib diisi";
+    } else if (!emailRegex.test(form.email.trim())) {
       errors.email = "Email tidak valid";
     }
-    
-    if (!form.password || form.password.length < 8) {
+ 
+    if (!form.password) {
+      errors.password = "Password wajib diisi";
+    } else if (form.password.length < 8) {
       errors.password = "Password minimal 8 karakter";
     }
-    
+ 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
-
+ 
   const onPromoteByEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setPromoting(true);
@@ -131,7 +156,7 @@ function PengaturanPage() {
       setPromoting(false);
     }
   };
-
+ 
   const onPromotePetugas = async (user_id: string) => {
     try {
       await promoteByIdFn({ data: { user_id } });
@@ -141,7 +166,7 @@ function PengaturanPage() {
       toast.error(err instanceof Error ? err.message : "Gagal");
     }
   };
-
+ 
   const onRevokeAdmin = async (user_id: string) => {
     if (!confirm("Cabut role admin dari user ini?")) return;
     try {
@@ -152,65 +177,70 @@ function PengaturanPage() {
       toast.error(err instanceof Error ? err.message : "Gagal");
     }
   };
-
+ 
   const onAddPetugas = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+ 
     if (!validateForm()) {
       return;
     }
-
+ 
     setSaving(true);
     try {
-      await createPetugasFn({
+      const created = (await createPetugasFn({
         data: {
           email: form.email,
           password: form.password,
           username: form.username,
           nama_lengkap: form.nama_lengkap,
         },
+      })) as PetugasUser;
+ 
+      qc.setQueryData<PetugasUser[]>(["petugas-list"], (current = []) => {
+        const filtered = current.filter((item) => item.user_id !== created.user_id);
+        return [created, ...filtered];
       });
+ 
       toast.success("Akun petugas berhasil dibuat");
       setOpen(false);
       setForm({ email: "", username: "", nama_lengkap: "", password: "" });
       setFormErrors({});
-      qc.invalidateQueries({ queryKey: ["petugas-list"] });
+      await qc.invalidateQueries({ queryKey: ["petugas-list"] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Gagal membuat akun";
+      if (msg.includes("Email sudah digunakan")) {
+        setFormErrors((prev) => ({ ...prev, email: "Email sudah digunakan" }));
+      }
+      if (msg.includes("Username sudah digunakan")) {
+        setFormErrors((prev) => ({ ...prev, username: "Username sudah digunakan" }));
+      }
+      if (msg.includes("Password")) {
+        setFormErrors((prev) => ({ ...prev, password: "Password minimal 8 karakter" }));
+      }
       toast.error(msg);
     } finally {
       setSaving(false);
     }
   };
-
+ 
   const removeRole = async (user_id: string) => {
     if (!confirm("Cabut role petugas dari user ini?")) return;
     try {
-      const { supabase } = await import("@/integrations/supabase/client");
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", user_id)
-        .eq("role", "petugas");
-      
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("Role petugas dicabut");
-        qc.invalidateQueries({ queryKey: ["petugas-list"] });
-      }
+      await removePetugasRoleFn({ data: { user_id } });
+      toast.success("Role petugas dicabut");
+      await qc.invalidateQueries({ queryKey: ["petugas-list"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menghapus role");
     }
   };
-
+ 
   const saveProfil = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem("profil_nama", profil.nama);
     localStorage.setItem("profil_alamat", profil.alamat);
     toast.success("Profil perpustakaan disimpan");
   };
-
+ 
   if (!isAdmin) {
     return (
       <div>
@@ -224,11 +254,11 @@ function PengaturanPage() {
       </div>
     );
   }
-
+ 
   return (
     <div className="space-y-6">
       <PageHeader title="Pengaturan" description="Kelola akun petugas dan profil perpustakaan." />
-
+ 
       {/* Akun Petugas Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -248,9 +278,11 @@ function PengaturanPage() {
             <table className="w-full text-sm">
               <thead className="bg-secondary/60 text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="text-left px-4 py-3">Nama</th>
+                  <th className="text-left px-4 py-3">Nama Lengkap</th>
                   <th className="text-left px-4 py-3">Username</th>
                   <th className="text-left px-4 py-3">Email</th>
+                  <th className="text-left px-4 py-3">Role</th>
+                  <th className="text-left px-4 py-3">Status</th>
                   <th className="text-right px-4 py-3">Aksi</th>
                 </tr>
               </thead>
@@ -260,6 +292,8 @@ function PengaturanPage() {
                     <td className="px-4 py-3 font-medium">{p.nama_lengkap ?? "-"}</td>
                     <td className="px-4 py-3">{p.username ?? "-"}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">{p.email ?? "-"}</td>
+                    <td className="px-4 py-3 capitalize">{p.role ?? "-"}</td>
+                    <td className="px-4 py-3">{p.status ?? "-"}</td>
                     <td className="px-4 py-3 text-right space-x-1">
                       <Button
                         size="sm"
@@ -285,7 +319,7 @@ function PengaturanPage() {
           )}
         </CardContent>
       </Card>
-
+ 
       {/* Admin Card */}
       <Card>
         <CardHeader>
@@ -294,7 +328,10 @@ function PengaturanPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={onPromoteByEmail} className="flex flex-col sm:flex-row gap-2 sm:items-end">
+          <form
+            onSubmit={onPromoteByEmail}
+            className="flex flex-col sm:flex-row gap-2 sm:items-end"
+          >
             <div className="flex-1 space-y-2">
               <Label>Promote user menjadi admin (berdasarkan email)</Label>
               <Input
@@ -309,7 +346,7 @@ function PengaturanPage() {
               {promoting && <Loader2 className="h-4 w-4 animate-spin" />} Jadikan Admin
             </Button>
           </form>
-
+ 
           <div className="overflow-x-auto">
             {!admins || admins.length === 0 ? (
               <p className="text-center py-6 text-sm text-muted-foreground">Belum ada admin.</p>
@@ -325,7 +362,9 @@ function PengaturanPage() {
                 <tbody>
                   {admins.map((a) => (
                     <tr key={a.user_id} className="border-t">
-                      <td className="px-4 py-3 font-medium">{a.nama_lengkap ?? a.username ?? "-"}</td>
+                      <td className="px-4 py-3 font-medium">
+                        {a.nama_lengkap ?? a.username ?? "-"}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{a.email ?? "-"}</td>
                       <td className="px-4 py-3 text-right">
                         {a.user_id === auth.user?.id ? (
@@ -349,7 +388,7 @@ function PengaturanPage() {
           </div>
         </CardContent>
       </Card>
-
+ 
       {/* Profil Perpustakaan Card */}
       <Card>
         <CardHeader>
@@ -375,7 +414,7 @@ function PengaturanPage() {
           </form>
         </CardContent>
       </Card>
-
+ 
       {/* Dialog Tambah Petugas */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -389,72 +428,36 @@ function PengaturanPage() {
                 value={form.nama_lengkap}
                 onChange={(e) => {
                   setForm({ ...form, nama_lengkap: e.target.value });
-                  if (formErrors.nama_lengkap) setFormErrors({ ...formErrors, nama_lengkap: undefined });
+                  if (formErrors.nama_lengkap)
+                    setFormErrors({ ...formErrors, nama_lengkap: undefined });
                 }}
                 placeholder="Cth: Budi Santoso"
                 aria-invalid={!!formErrors.nama_lengkap}
-              />
-              {formErrors.nama_lengkap && (
-                <p className="text-xs text-destructive">{formErrors.nama_lengkap}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Username</Label>
-              <Input
-                value={form.username}
-                onChange={(e) => {
-                  setForm({ ...form, username: e.target.value });
-                  if (formErrors.username) setFormErrors({ ...formErrors, username: undefined });
-                }}
-                placeholder="Cth: budisantoso"
-                aria-invalid={!!formErrors.username}
-              />
-              {formErrors.username && (
-                <p className="text-xs text-destructive">{formErrors.username}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => {
-                  setForm({ ...form, email: e.target.value });
-                  if (formErrors.email) setFormErrors({ ...formErrors, email: undefined });
-                }}
+29 lines hidden
                 placeholder="budi@perpustakaan.com"
                 aria-invalid={!!formErrors.email}
               />
-              {formErrors.email && (
-                <p className="text-xs text-destructive">{formErrors.email}</p>
-              )}
+              {formErrors.email && <p className="text-xs text-destructive">{formErrors.email}</p>}
             </div>
             <div className="space-y-2">
               <Label>Password (min 8 karakter)</Label>
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(e) => {
-                  setForm({ ...form, password: e.target.value });
-                  if (formErrors.password) setFormErrors({ ...formErrors, password: undefined });
-                }}
-                placeholder="Masukkan password yang aman"
-                aria-invalid={!!formErrors.password}
-              />
-              {formErrors.password && (
-                <p className="text-xs text-destructive">{formErrors.password}</p>
+12 lines hidden
               )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => {
-                setOpen(false);
-                setFormErrors({});
-              }}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setOpen(false);
+                  setFormErrors({});
+                }}
+              >
                 Batal
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Buat Akun
+                {saving ? "Membuat..." : "Buat Akun"}
               </Button>
             </DialogFooter>
           </form>
