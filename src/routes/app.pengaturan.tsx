@@ -224,8 +224,11 @@ function PengaturanPage() {
                     <td className="px-4 py-3 font-medium">{p.nama_lengkap ?? "-"}</td>
                     <td className="px-4 py-3">{p.username ?? "-"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.email ?? "-"}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => removeRole(p.user_id)}>
+                    <td className="px-4 py-3 text-right space-x-1">
+                      <Button size="sm" variant="outline" onClick={() => onPromotePetugas(p.user_id)} title="Jadikan admin">
+                        <ArrowUp className="h-4 w-4" /> Admin
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => removeRole(p.user_id)} title="Cabut role petugas">
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </td>
