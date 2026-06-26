@@ -55,7 +55,7 @@ function getPetugasStatus(user: {
   if (user.email_confirmed_at) return "Aktif";
   return "Menunggu Verifikasi";
 }
-
+ 
 export const createPetugas = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => schema.parse(data))
@@ -64,6 +64,7 @@ export const createPetugas = createServerFn({ method: "POST" })
  
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const users = await listAllAuthUsers(supabaseAdmin);
+ 
     const normalizedEmail = data.email.trim().toLowerCase();
     const normalizedUsername = data.username.trim().toLowerCase();
     const namaLengkap = data.nama_lengkap.trim();
@@ -87,17 +88,17 @@ export const createPetugas = createServerFn({ method: "POST" })
     }
  
     const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
-       email: normalizedEmail,
+      email: normalizedEmail,
       password: data.password,
       email_confirm: true,
-       user_metadata: {
+      user_metadata: {
         username: normalizedUsername,
         full_name: namaLengkap,
         nama_lengkap: namaLengkap,
         role: "petugas",
       },
     });
-
+ 
     if (cErr || !created.user) {
       if (cErr?.message?.includes("already exists")) {
         throw new Error("Email sudah digunakan. Gunakan email lain.");
@@ -107,12 +108,12 @@ export const createPetugas = createServerFn({ method: "POST" })
       }
       throw new Error(cErr?.message ?? "Gagal membuat akun petugas.");
     }
-
+ 
     return {
       ok: true,
       user_id: created.user.id,
       email: created.user.email,
-       username: normalizedUsername,
+      username: normalizedUsername,
       nama_lengkap: namaLengkap,
       role: "petugas",
       status: getPetugasStatus(created.user),
@@ -126,17 +127,19 @@ export const createPetugas = createServerFn({ method: "POST" })
 export const fetchPetugasList = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-     await assertAdmin(context);
+    await assertAdmin(context);
  
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const users = await listAllAuthUsers(supabaseAdmin);
+ 
     const { data: adminRoles, error: adminRolesErr } = await supabaseAdmin
       .from("user_roles")
       .select("user_id")
-    .eq("role", "admin");
-
- if (adminRolesErr) throw new Error(adminRolesErr.message);
- const adminIds = new Set((adminRoles ?? []).map((role) => role.user_id));
+      .eq("role", "admin");
+ 
+    if (adminRolesErr) throw new Error(adminRolesErr.message);
+ 
+    const adminIds = new Set((adminRoles ?? []).map((role) => role.user_id));
  
     return users
       .filter((user) => {
@@ -149,11 +152,11 @@ export const fetchPetugasList = createServerFn({ method: "GET" })
           user_id: user.id,
           email: user.email ?? null,
           username: meta.username ?? null,
-           nama_lengkap: meta.full_name ?? meta.nama_lengkap ?? null,
+          nama_lengkap: meta.full_name ?? meta.nama_lengkap ?? null,
           role: meta.role ?? "petugas",
           status: getPetugasStatus(user),
         };
-         })
+      })
       .sort((a, b) => (a.nama_lengkap ?? "").localeCompare(b.nama_lengkap ?? "", "id"));
   });
  
@@ -213,8 +216,9 @@ export const fetchAdminList = createServerFn({ method: "GET" })
       .from("user_roles")
       .select("user_id")
       .eq("role", "admin");
-
-   if (rolesErr) throw new Error(rolesErr.message);
+ 
+    if (rolesErr) throw new Error(rolesErr.message);
+ 
     const userIds = (roles ?? []).map((r) => r.user_id);
     if (userIds.length === 0) return [];
  
@@ -222,8 +226,8 @@ export const fetchAdminList = createServerFn({ method: "GET" })
     const { data: authUsers, error: authErr } = await supabaseAdmin.auth.admin.listUsers({
       perPage: 1000,
     });
-
- if (authErr) throw new Error(authErr.message);
+ 
+    if (authErr) throw new Error(authErr.message);
  
     // Filter and map users
     return (authUsers?.users ?? [])
@@ -237,4 +241,4 @@ export const fetchAdminList = createServerFn({ method: "GET" })
           nama_lengkap: meta.nama_lengkap ?? null,
         };
       });
-  });          
+  });
