@@ -14,16 +14,41 @@ const schema = z.object({
 type AdminContext = {
   supabase: SupabaseClient<Database>;
   userId: string;
+  claims?: Record<string, unknown> | null;
 };
- 
+
+function claimsHaveAdmin(claims: Record<string, unknown> | null | undefined): boolean {
+  if (!claims) return false;
+  const candidates: unknown[] = [
+    (claims as any).role,
+    (claims as any).user_role,
+    (claims as any).roles,
+    (claims as any).user_roles,
+    (claims as any).app_metadata?.role,
+    (claims as any).app_metadata?.roles,
+    (claims as any).user_metadata?.role,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.toLowerCase() === "admin") return true;
+    if (Array.isArray(c) && c.some((v) => typeof v === "string" && v.toLowerCase() === "admin"))
+      return true;
+  }
+  return false;
+}
+
 async function assertAdmin(ctx: AdminContext) {
-  const { data: roleRow, error: roleErr } = await ctx.supabase
+  // 1. Prefer JWT custom claim (Custom Access Token Hook).
+  if (claimsHaveAdmin(ctx.claims ?? null)) return;
+
+  // 2. Fallback: check user_roles table via service role (bypass RLS).
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: roleRow, error: roleErr } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", ctx.userId)
     .eq("role", "admin")
     .maybeSingle();
- 
+
   if (roleErr) throw new Error(roleErr.message);
   if (!roleRow) throw new Response("Forbidden", { status: 403 });
 }
