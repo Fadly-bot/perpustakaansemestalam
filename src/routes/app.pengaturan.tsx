@@ -433,9 +433,6 @@ function PengaturanPage() {
                 }}
                 placeholder="Cth: Budi Santoso"
                 aria-invalid={!!formErrors.nama_lengkap}
-29 lines hidden
-                placeholder="budi@perpustakaan.com"
-                aria-invalid={!!formErrors.email}
               />
               {formErrors.nama_lengkap && (
                 <p className="text-xs text-destructive">{formErrors.nama_lengkap}</p>
