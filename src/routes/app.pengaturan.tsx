@@ -437,13 +437,59 @@ function PengaturanPage() {
                 placeholder="budi@perpustakaan.com"
                 aria-invalid={!!formErrors.email}
               />
+              {formErrors.nama_lengkap && (
+                <p className="text-xs text-destructive">{formErrors.nama_lengkap}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <Input
+                value={form.username}
+                onChange={(e) => {
+                  setForm({ ...form, username: e.target.value });
+                  if (formErrors.username)
+                    setFormErrors({ ...formErrors, username: undefined });
+                }}
+                placeholder="Cth: budi_petugas"
+                aria-invalid={!!formErrors.username}
+              />
+              {formErrors.username && (
+                <p className="text-xs text-destructive">{formErrors.username}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value });
+                  if (formErrors.email)
+                    setFormErrors({ ...formErrors, email: undefined });
+                }}
+                placeholder="budi@perpustakaan.com"
+                aria-invalid={!!formErrors.email}
+              />
               {formErrors.email && <p className="text-xs text-destructive">{formErrors.email}</p>}
             </div>
             <div className="space-y-2">
               <Label>Password (min 8 karakter)</Label>
-12 lines hidden
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(e) => {
+                  setForm({ ...form, password: e.target.value });
+                  if (formErrors.password)
+                    setFormErrors({ ...formErrors, password: undefined });
+                }}
+                placeholder="Minimal 8 karakter"
+                aria-invalid={!!formErrors.password}
+              />
+              {formErrors.password && (
+                <p className="text-xs text-destructive">{formErrors.password}</p>
               )}
             </div>
+
             <DialogFooter>
               <Button
                 type="button"
