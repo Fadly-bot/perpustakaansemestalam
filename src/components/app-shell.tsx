@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!auth.loading && !auth.user) {
-      navigate({ to: "/login" });
+     // navigate({ to: "/login" });
     }
   }, [auth.loading, auth.user, navigate]);
 
